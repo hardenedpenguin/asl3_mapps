@@ -7,9 +7,9 @@ Ruby-based multi-app installer for AllStarLink v3. Installs **AllScan**, **DVSwi
 - Ruby 3.x (stdlib only; no gems)
 - **Run with sudo only, from a user account.** The script must be invoked as `sudo ./asl3_mapp.rb ...` while logged in as a normal user. Do **not** run it as root (e.g. after `su -` or root login), and do **not** run it as a normal user without `sudo`—it will exit with an error. This ensures installers that need a non-root user (e.g. SkywarnPlus-NG with `-w`) run correctly.
 
-## Warning: ASL3 Trixie image (/tmp and /var/tmp)
+## Warning: ASL3 Trixie image (/var/tmp)
 
-On the **ASL3 Trixie image**, `/tmp` and `/var/tmp` are mounted as **tmpfs with `noexec`**. This prevents the script from running installers and extracted binaries that live under `/var/tmp/m_app_install`. **You must adjust `/etc/fstab`** so that `/tmp` and/or `/var/tmp` are either not tmpfs or are mounted **without** `noexec` (e.g. add `exec` to the options, or use a different mount). After changing `/etc/fstab`, remount or reboot before running this script.
+On the **ASL3 Trixie image**, `/var/tmp` is mounted as **tmpfs with `noexec`**, so the script cannot run installers under `/var/tmp/m_app_install`. **Adjust `/etc/fstab`** for `/var/tmp` only: either add `exec` to the mount options, or comment out the `/var/tmp` line. Then remount or reboot before running this script.
 
 ## Download & permissions
 
