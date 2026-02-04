@@ -161,11 +161,17 @@ def ensure_fstab_tmpfs!
   File.write(FSTAB, new_content)
   log(:info, "Updated #{FSTAB}: single tmpfs for /tmp, other tmpfs entries commented out. Backup: #{FSTAB}.m_app_install.bak")
 
-  ok, = run('umount /var/tmp')
-  if ok
-    log(:info, '/var/tmp is now on disk; this run can proceed without reboot.')
+  # Only unmount if /var/tmp is currently a mount point (e.g. tmpfs).
+  mounted, = run('mountpoint -q /var/tmp')
+  if mounted
+    ok, = run('umount /var/tmp')
+    if ok
+      log(:info, '/var/tmp is now on disk; this run can proceed without reboot.')
+    else
+      log(:warn, 'Could not umount /var/tmp (in use?); reboot and run again for installs to use disk.')
+    end
   else
-    log(:warn, 'Could not umount /var/tmp (in use?); reboot and run again for installs to use disk.')
+    log(:info, '/var/tmp is not mounted; already on disk. This run can proceed.')
   end
 end
 
@@ -459,12 +465,14 @@ unless Process.uid == 0 && !ENV['SUDO_USER'].to_s.empty?
   error_exit('This script must be run with sudo (e.g. sudo ./asl3_mapp.rb ...).')
 end
 
-FileUtils.mkdir_p(TEMP_DIR)
-FileUtils.chmod(0o755, TEMP_DIR)
 FileUtils.touch(LOG_FILE) unless File.exist?(LOG_FILE)
 
 log(:info, 'Starting M-Apps installation script')
 ensure_fstab_tmpfs!
+
+# Create TEMP_DIR after ensure_fstab_tmpfs! so it lives on disk if /var/tmp was unmounted/remounted.
+FileUtils.mkdir_p(TEMP_DIR)
+FileUtils.chmod(0o755, TEMP_DIR)
 
 install_allscan_flag = false
 install_dvswitch_flag = false
