@@ -25,6 +25,7 @@ require 'fileutils'
 require 'open-uri'
 require 'optparse'
 require 'open3'
+require 'shellwords'
 
 # Configuration
 LOG_FILE = '/var/log/m_app_install.log'
@@ -348,7 +349,11 @@ def install_skywarnplus_ng
 
   log(:info, "Installing SkywarnPlus-NG (install.sh will run as #{sudo_user})...")
 
-  pw = Etc.getpwnam(sudo_user)
+  begin
+    pw = Etc.getpwnam(sudo_user)
+  rescue ArgumentError
+    error_exit("User #{sudo_user} (SUDO_USER) not found on this system.")
+  end
 
   extract_path = File.join(TEMP_DIR, SKYWARNPLUS_NG_EXTRACT_DIR)
 
@@ -367,7 +372,9 @@ def install_skywarnplus_ng
     FileUtils.chown_R(pw.uid, pw.gid, SKYWARNPLUS_NG_EXTRACT_DIR)
 
     log(:info, 'Running SkywarnPlus-NG installer (as non-root)...')
-    install_cmd = "sudo -u #{sudo_user} env HOME=#{pw.dir} bash -c \"cd #{extract_path} && ./install.sh\""
+    home_s = Shellwords.escape(pw.dir)
+    path_s = Shellwords.escape(extract_path)
+    install_cmd = "sudo -u #{sudo_user} env HOME=#{home_s} bash -c \"cd #{path_s} && ./install.sh\""
     ok, _, stderr = run(install_cmd)
     if ok
       log(:info, 'SkywarnPlus-NG installation completed successfully')
@@ -411,6 +418,7 @@ def install_sayip_node_utils
 
     log(:info, "Installing sayip-node-utils for NODE_NUMBER=#{node_number}...")
     run!("NODE_NUMBER=#{node_number} dpkg -i ./#{SAYIP_NODE_UTILS_DEB}")
+    run!('apt install -f -y')
 
     FileUtils.rm_f(SAYIP_NODE_UTILS_DEB)
   end
@@ -498,13 +506,16 @@ if !install_allscan_flag && !install_dvswitch_flag && !install_supermon_ng_flag 
   exit 1
 end
 
-install_allscan if install_allscan_flag
-install_dvswitch if install_dvswitch_flag
-install_supermon_ng if install_supermon_ng_flag
-install_skywarnplus_ng if install_skywarnplus_ng_flag
-install_saytime_weather_rb if install_saytime_weather_rb_flag
-install_sayip_node_utils if install_sayip_node_utils_flag
-install_internet_monitor if install_internet_monitor_flag
+begin
+  install_allscan if install_allscan_flag
+  install_dvswitch if install_dvswitch_flag
+  install_supermon_ng if install_supermon_ng_flag
+  install_skywarnplus_ng if install_skywarnplus_ng_flag
+  install_saytime_weather_rb if install_saytime_weather_rb_flag
+  install_sayip_node_utils if install_sayip_node_utils_flag
+  install_internet_monitor if install_internet_monitor_flag
 
-FileUtils.rm_rf(TEMP_DIR)
-log(:info, "Installation completed. Log file: #{LOG_FILE}")
+  log(:info, "Installation completed. Log file: #{LOG_FILE}")
+ensure
+  FileUtils.rm_rf(TEMP_DIR)
+end
