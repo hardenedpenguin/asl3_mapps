@@ -48,13 +48,8 @@ sudo ./asl3_mapp.rb -h          # Help
 
 ## DVSwitch (Trixie / Bookworm)
 
-DVSwitch is installed using the official scripts from [dvswitch.org](http://dvswitch.org/trixie): **Trixie** or **Bookworm** is chosen automatically from your system’s distro codename. No SHA1 crypto-policy override is applied; the DVSwitch repository is SHA-256 compliant.
+DVSwitch is installed using the official scripts from [dvswitch.org](http://dvswitch.org/trixie): **Trixie** or **Bookworm** is chosen automatically from your system’s distro codename. The DVSwitch repository is SHA-256 compliant.
 
-If you previously installed DVSwitch with an older version of this script that created an APT crypto-policy override, remove it:
-
-- `sudo rm -f /etc/crypto-policies/back-ends/apt-sequoia.config`
-
-The installer will warn you at run time if this override file is present and advise removal.
 
 ## Paths
 

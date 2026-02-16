@@ -48,8 +48,6 @@ INTERNET_MONITOR_VERSION = '1.0.1'
 INTERNET_MONITOR_DEB = "internet-monitor_#{INTERNET_MONITOR_VERSION}-1_all.deb"
 INTERNET_MONITOR_URL = "https://github.com/hardenedpenguin/internet_monitor_rb/releases/download/v#{INTERNET_MONITOR_VERSION}/#{INTERNET_MONITOR_DEB}"
 INTERNET_MONITOR_CONF = '/etc/internet-monitor.conf'
-# Path checked to advise removal of legacy SHA1 crypto-policy override (no longer applied by this script)
-APT_SEQUOIA_OVERRIDE = '/etc/crypto-policies/back-ends/apt-sequoia.config'
 FSTAB = '/etc/fstab'
 FSTAB_TMPFS_TMP_LINE = "tmpfs           /tmp            tmpfs   defaults,noatime,nosuid,nodev,mode=1777,size=256M 0 0"
 
@@ -240,11 +238,6 @@ end
 
 def install_dvswitch
   log(:info, 'Installing DVSwitch Server...')
-
-  if File.file?(APT_SEQUOIA_OVERRIDE)
-    log(:warn, 'APT crypto-policy override is present. DVSwitch now uses SHA-256; you can remove it:')
-    log(:warn, "  sudo rm -f #{APT_SEQUOIA_OVERRIDE}")
-  end
 
   run!('apt install -y php-cgi libapache2-mod-php')
 
