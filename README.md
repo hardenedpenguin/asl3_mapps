@@ -9,13 +9,13 @@ Ruby-based multi-app installer for AllStarLink v3. Installs **AllScan**, **DVSwi
 
 ## hardenedpenguin APT repository
 
-Supermon-NG, SkywarnPlus-NG, saytime-weather-rb, sayip-node-utils, and internet-monitor are installed from the [hardenedpenguin APT repository](https://github.com/hardenedpenguin/hardenedpenguin-apt). The script configures this repo automatically (keyring + `apt update`) the first time one of those components is installed.
+Supermon-NG, SkywarnPlus-NG, saytime-weather-rb, sayip-node-utils, and internet-monitor are installed from the [hardenedpenguin APT repository](https://github.com/hardenedpenguin/hardenedpenguin-apt). The script configures this repo automatically (keyring 1.2+ with bookworm/trixie suite support, then `apt update`) the first time one of those components is installed.
 
 After installation, update those packages with:
 
 ```bash
 sudo apt update
-sudo apt upgrade supermon-ng skywarnplus-ng-all saytime-weather-rb sayip-node-utils internet-monitor
+sudo apt upgrade supermon-ng skywarnplus-ng saytime-weather-rb sayip-node-utils internet-monitor
 ```
 
 ## Download & permissions
@@ -36,7 +36,7 @@ Run the script **with sudo** from your **user account** (not as root):
 sudo ./asl3_mapp.rb -a          # AllScan only
 sudo ./asl3_mapp.rb -d          # DVSwitch only
 sudo ./asl3_mapp.rb -s          # Supermon-NG only
-sudo ./asl3_mapp.rb -w          # SkywarnPlus-NG only (skywarnplus-ng-all)
+sudo ./asl3_mapp.rb -w          # SkywarnPlus-NG only
 sudo ./asl3_mapp.rb -y          # saytime-weather-rb only
 sudo ./asl3_mapp.rb -i          # sayip-node-utils (prompts for NODE_NUMBER)
 sudo ./asl3_mapp.rb -m          # internet-monitor (mobile nodes; prompts for NODE_NUMBER)
@@ -51,10 +51,10 @@ sudo ./asl3_mapp.rb -h          # Help
 | `-a` | Install AllScan |
 | `-d` | Install DVSwitch Server |
 | `-s` | Install Supermon-NG |
-| `-w` | Install SkywarnPlus-NG (`skywarnplus-ng-all` from hardenedpenguin APT) |
+| `-w` | Install SkywarnPlus-NG (from hardenedpenguin APT) |
 | `-y` | Install saytime-weather-rb (Ruby saytime + weather) |
-| `-i` | Install sayip-node-utils (prompts for NODE_NUMBER) |
-| `-m` | Install internet-monitor (mobile nodes; prompts for NODE_NUMBER) |
+| `-i` | Install sayip-node-utils (`NODE_NUMBER` env or prompt) |
+| `-m` | Install internet-monitor (mobile nodes; `NODE_NUMBER` env or prompt) |
 | `-h` | Show help |
 
 ## DVSwitch (Trixie / Bookworm)

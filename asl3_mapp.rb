@@ -30,9 +30,10 @@ require 'shellwords'
 LOG_FILE = '/var/log/m_app_install.log'
 TEMP_DIR = '/var/tmp/m_app_install'
 DVSWITCH_CONFIG = '/usr/share/dvswitch/include/config.php'
-HARDENEDPENGUIN_APT_KEYRING_URL = 'https://hardenedpenguin.github.io/hardenedpenguin-apt/pool/main/h/hardenedpenguin-archive-keyring/hardenedpenguin-archive-keyring_1.0_all.deb'
-HARDENEDPENGUIN_APT_KEYRING_DEB = 'hardenedpenguin-archive-keyring_1.0_all.deb'
+HARDENEDPENGUIN_APT_KEYRING_URL = 'https://hardenedpenguin.github.io/hardenedpenguin-apt/pool/main/h/hardenedpenguin-archive-keyring/hardenedpenguin-archive-keyring_1.2_all.deb'
+HARDENEDPENGUIN_APT_KEYRING_DEB = 'hardenedpenguin-archive-keyring_1.2_all.deb'
 HARDENEDPENGUIN_APT_SOURCE = '/etc/apt/sources.list.d/hardenedpenguin.list'
+HARDENEDPENGUIN_KEYRING_MIN_VERSION = '1.2'
 INTERNET_MONITOR_CONF = '/etc/internet-monitor.conf'
 FSTAB = '/etc/fstab'
 FSTAB_TMPFS_TMP_LINE = "tmpfs           /tmp            tmpfs   defaults,noatime,nosuid,nodev,mode=1777,size=256M 0 0"
@@ -81,26 +82,45 @@ def hardenedpenguin_apt_configured?
   File.file?(HARDENEDPENGUIN_APT_SOURCE) || deb_package_installed?('hardenedpenguin-archive-keyring')
 end
 
-def ensure_hardenedpenguin_apt!
-  return if hardenedpenguin_apt_configured?
+def installed_keyring_version
+  ok, stdout, _stderr = run("dpkg-query -W -f='${Version}' hardenedpenguin-archive-keyring 2>/dev/null")
+  ok ? stdout.strip : nil
+end
 
-  log(:info, 'Setting up hardenedpenguin APT repository...')
+def keyring_needs_upgrade?(version)
+  return true if version.nil? || version.empty?
+
+  Gem::Version.new(version.split('-').first) < Gem::Version.new(HARDENEDPENGUIN_KEYRING_MIN_VERSION)
+rescue ArgumentError
+  true
+end
+
+def install_or_upgrade_keyring!
   FileUtils.cd(TEMP_DIR) do
     safe_download(HARDENEDPENGUIN_APT_KEYRING_URL, HARDENEDPENGUIN_APT_KEYRING_DEB)
-    run!("apt install -y ./#{HARDENEDPENGUIN_APT_KEYRING_DEB}")
+    run!("DEBIAN_FRONTEND=noninteractive apt install -y ./#{HARDENEDPENGUIN_APT_KEYRING_DEB}")
     FileUtils.rm_f(HARDENEDPENGUIN_APT_KEYRING_DEB)
   end
+end
+
+def ensure_hardenedpenguin_apt!
+  if hardenedpenguin_apt_configured?
+    if keyring_needs_upgrade?(installed_keyring_version)
+      log(:info, "Upgrading hardenedpenguin-archive-keyring to #{HARDENEDPENGUIN_KEYRING_MIN_VERSION}+...")
+      install_or_upgrade_keyring!
+    end
+  else
+    log(:info, 'Setting up hardenedpenguin APT repository...')
+    install_or_upgrade_keyring!
+  end
+
   run!('apt update')
-  log(:info, 'hardenedpenguin APT repository configured.')
+  log(:info, 'hardenedpenguin APT repository ready.')
 end
 
 def apt_install_package!(package_name)
   ensure_hardenedpenguin_apt!
-  if deb_package_installed?(package_name)
-    run!("apt install --reinstall -y #{Shellwords.escape(package_name)}")
-  else
-    run!("apt install -y #{Shellwords.escape(package_name)}")
-  end
+  run!("DEBIAN_FRONTEND=noninteractive apt install -y #{Shellwords.escape(package_name)}")
 end
 
 def run_interactive!(cmd)
@@ -129,7 +149,7 @@ end
 
 def prompt_node_number
   unless $stdin.tty?
-    error_exit('NODE_NUMBER is required. Please run interactively in a terminal.')
+    error_exit('NODE_NUMBER is required. Set NODE_NUMBER=1234 or run interactively in a terminal.')
   end
 
   print 'Enter your AllStar node number (NODE_NUMBER): '
@@ -137,6 +157,16 @@ def prompt_node_number
   error_exit('No node number provided.') if node.nil? || node.empty?
   error_exit('Invalid node number. Use digits only.') unless node.match?(/\A\d+\z/)
   node
+end
+
+def node_number_from_env_or_prompt
+  node = ENV['NODE_NUMBER']&.strip
+  unless node.nil? || node.empty?
+    error_exit('Invalid NODE_NUMBER. Use digits only.') unless node.match?(/\A\d+\z/)
+    return node
+  end
+
+  prompt_node_number
 end
 
 def ensure_fstab_tmpfs!
@@ -335,13 +365,13 @@ def install_supermon_ng
 end
 
 def install_skywarnplus_ng
-  if deb_package_installed?('skywarnplus-ng-all') || deb_package_installed?('skywarnplus-ng')
+  if deb_package_installed?('skywarnplus-ng') || deb_package_installed?('skywarnplus-ng-all')
     log(:info, 'SkywarnPlus-NG is already installed; skipping installation.')
     return
   end
 
-  log(:info, 'Installing SkywarnPlus-NG (skywarnplus-ng-all)...')
-  apt_install_package!('skywarnplus-ng-all')
+  log(:info, 'Installing SkywarnPlus-NG...')
+  apt_install_package!('skywarnplus-ng')
   run!('systemctl enable skywarnplus-ng')
   run!('systemctl start skywarnplus-ng')
   log(:info, 'SkywarnPlus-NG service enabled and started. Dashboard: http://localhost:8100 (default: admin / skywarn123)')
@@ -367,9 +397,9 @@ def install_sayip_node_utils
   end
 
   log(:info, 'Installing sayip-node-utils (SayIP/reboot/halt/public IP)...')
-  node_number = prompt_node_number
+  node_number = node_number_from_env_or_prompt
   ensure_hardenedpenguin_apt!
-  run!("NODE_NUMBER=#{Shellwords.escape(node_number)} apt install -y sayip-node-utils")
+  run!("DEBIAN_FRONTEND=noninteractive NODE_NUMBER=#{node_number} apt install -y sayip-node-utils")
   log(:info, 'Post-install: you may need `sudo asterisk -rx "rpt reload"` (and/or restart asterisk) for new DTMF config to load.')
 end
 
@@ -380,9 +410,9 @@ def install_internet_monitor
   end
 
   log(:info, 'Installing internet-monitor (primarily for mobile nodes)...')
-  node_number = prompt_node_number
+  node_number = node_number_from_env_or_prompt
   ensure_hardenedpenguin_apt!
-  run!("NODE_NUMBER=#{Shellwords.escape(node_number)} apt install -y internet-monitor")
+  run!("DEBIAN_FRONTEND=noninteractive NODE_NUMBER=#{node_number} apt install -y internet-monitor")
 
   log(:info, "Writing NODE_NUMBER=#{node_number} to #{INTERNET_MONITOR_CONF}...")
   set_kv_line(INTERNET_MONITOR_CONF, 'NODE_NUMBER', node_number)
@@ -400,10 +430,10 @@ def usage
       -a    Install AllScan
       -d    Install DVSwitch
       -s    Install Supermon-NG
-      -w    Install SkywarnPlus-NG (skywarnplus-ng-all from hardenedpenguin APT)
+      -w    Install SkywarnPlus-NG (from hardenedpenguin APT)
       -y    Install saytime-weather-rb (Ruby saytime + weather)
-      -i    Install sayip-node-utils (prompts for NODE_NUMBER)
-      -m    Install internet-monitor (mobile nodes; prompts for NODE_NUMBER)
+      -i    Install sayip-node-utils (NODE_NUMBER env or prompt)
+      -m    Install internet-monitor (mobile nodes; NODE_NUMBER env or prompt)
       -h    Display this help message
 
     You can combine options (e.g. #{$PROGRAM_NAME} -a -d -s -w -y -i -m).
