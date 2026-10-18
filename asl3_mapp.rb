@@ -73,9 +73,10 @@ def run!(cmd)
   error_exit("Command failed: #{cmd}\n#{stderr}".strip)
 end
 
+# Only "ii" counts: half-configured or removed packages must be (re)installed.
 def deb_package_installed?(name)
-  ok, _stdout, _stderr = run("dpkg -s #{Shellwords.escape(name)} 2>/dev/null")
-  ok
+  ok, stdout, _stderr = run("dpkg-query -W -f='${db:Status-Abbrev}' #{Shellwords.escape(name)} 2>/dev/null")
+  ok && stdout.start_with?('ii')
 end
 
 def hardenedpenguin_apt_configured?
