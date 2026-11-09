@@ -2,7 +2,7 @@
 # frozen_string_literal: true
 
 # This script assists with the new install of AllStarLink version 3.
-# It installs AllScan Dashboard, DVSwitch Server, Supermon-NG, SkywarnPlus-NG,
+# It installs AllScan Dashboard, DVSwitch Server, Supermon-NG, SM-Elite, SkywarnPlus-NG,
 # saytime-weather-rb, sayip-node-utils, and internet-monitor (mobile nodes).
 #
 # Copyright (C) 2026 Jory A. Pratt - W5GLE <geekypenguin@gmail.com>
@@ -97,6 +97,7 @@ rescue ArgumentError
 end
 
 def install_or_upgrade_keyring!
+  ensure_work_dir!
   FileUtils.cd(TEMP_DIR) do
     safe_download(HARDENEDPENGUIN_APT_KEYRING_URL, HARDENEDPENGUIN_APT_KEYRING_DEB)
     run!("DEBIAN_FRONTEND=noninteractive apt install -y ./#{HARDENEDPENGUIN_APT_KEYRING_DEB}")
@@ -105,6 +106,8 @@ def install_or_upgrade_keyring!
 end
 
 def ensure_hardenedpenguin_apt!
+  return if @hardenedpenguin_apt_ensured
+
   if hardenedpenguin_apt_configured?
     if keyring_needs_upgrade?(installed_keyring_version)
       log(:info, "Upgrading hardenedpenguin-archive-keyring to #{HARDENEDPENGUIN_KEYRING_MIN_VERSION}+...")
@@ -117,10 +120,10 @@ def ensure_hardenedpenguin_apt!
 
   run!('apt update')
   log(:info, 'hardenedpenguin APT repository ready.')
+  @hardenedpenguin_apt_ensured = true
 end
 
 def apt_install_package!(package_name)
-  ensure_hardenedpenguin_apt!
   run!("DEBIAN_FRONTEND=noninteractive apt install -y #{Shellwords.escape(package_name)}")
 end
 
@@ -129,6 +132,11 @@ def run_interactive!(cmd)
   ok = system(cmd)
   return if ok
   error_exit("Command failed: #{cmd}")
+end
+
+def ensure_work_dir!
+  FileUtils.mkdir_p(TEMP_DIR)
+  FileUtils.chmod(0o755, TEMP_DIR)
 end
 
 def safe_download(url, output_path, max_retries: 3)
@@ -287,6 +295,7 @@ def install_allscan
 
   run!('apt install -y php unzip asl3-tts')
 
+  ensure_work_dir!
   FileUtils.cd(TEMP_DIR) do
     installer = 'AllScanInstallUpdate.php'
     safe_download('https://raw.githubusercontent.com/davidgsd/AllScan/main/AllScanInstallUpdate.php', installer)
@@ -320,17 +329,14 @@ def install_dvswitch
   installer_url = codename == 'trixie' ? 'http://dvswitch.org/trixie' : 'http://dvswitch.org/bookworm'
   installer = codename == 'trixie' ? 'trixie' : 'bookworm'
 
+  ensure_work_dir!
   FileUtils.cd(TEMP_DIR) do
     safe_download(installer_url, installer)
-    File.chmod(0o755, installer)
 
+    # Run via bash so install works when /var/tmp is mounted noexec (common on ASL3 appliances).
     log(:info, 'Running DVSwitch installer...')
-    ok, _, stderr = run("./#{installer}")
-    if ok
-      log(:info, 'DVSwitch installer completed')
-    else
-      error_exit("DVSwitch installer failed: #{stderr}")
-    end
+    run_interactive!("bash #{Shellwords.escape(installer)}")
+    log(:info, 'DVSwitch installer completed')
 
     FileUtils.rm_f(installer)
   end
@@ -352,6 +358,19 @@ def install_dvswitch
   end
 
   log(:info, 'DVSwitch Server installation completed successfully')
+end
+
+def install_sm_elite
+  if deb_package_installed?('sm-elite')
+    log(:info, 'SM-Elite is already installed; skipping installation.')
+    return
+  end
+
+  log(:info, 'Installing SM-Elite...')
+  apt_install_package!('sm-elite')
+  log(:info, 'SM-Elite installation completed successfully')
+  log(:info, 'Dashboard: http://<node>/sm-elite/ (or https://<node>/sm-elite/ on ASL3 appliances)')
+  log(:info, 'First-time admin setup code: sudo cat /var/lib/sm-elite/setup-code')
 end
 
 def install_supermon_ng
@@ -399,7 +418,6 @@ def install_sayip_node_utils
 
   log(:info, 'Installing sayip-node-utils (SayIP/reboot/halt/public IP)...')
   node_number = node_number_from_env_or_prompt
-  ensure_hardenedpenguin_apt!
   run!("DEBIAN_FRONTEND=noninteractive NODE_NUMBER=#{node_number} apt install -y sayip-node-utils")
   log(:info, 'Post-install: you may need `sudo asterisk -rx "rpt reload"` (and/or restart asterisk) for new DTMF config to load.')
 end
@@ -412,7 +430,6 @@ def install_internet_monitor
 
   log(:info, 'Installing internet-monitor (primarily for mobile nodes)...')
   node_number = node_number_from_env_or_prompt
-  ensure_hardenedpenguin_apt!
   run!("DEBIAN_FRONTEND=noninteractive NODE_NUMBER=#{node_number} apt install -y internet-monitor")
 
   log(:info, "Writing NODE_NUMBER=#{node_number} to #{INTERNET_MONITOR_CONF}...")
@@ -430,6 +447,7 @@ def usage
     Options:
       -a    Install AllScan
       -d    Install DVSwitch
+      -e    Install SM-Elite (from hardenedpenguin APT)
       -s    Install Supermon-NG
       -w    Install SkywarnPlus-NG (from hardenedpenguin APT)
       -y    Install saytime-weather-rb (Ruby saytime + weather)
@@ -437,7 +455,7 @@ def usage
       -m    Install internet-monitor (mobile nodes; NODE_NUMBER env or prompt)
       -h    Display this help message
 
-    You can combine options (e.g. #{$PROGRAM_NAME} -a -d -s -w -y -i -m).
+    You can combine options (e.g. #{$PROGRAM_NAME} -a -d -e -s -w -y -i -m).
   USAGE
 end
 
@@ -450,14 +468,15 @@ end
 FileUtils.touch(LOG_FILE) unless File.exist?(LOG_FILE)
 
 log(:info, 'Starting M-Apps installation script')
+@hardenedpenguin_apt_ensured = false
 ensure_fstab_tmpfs!
 
 # Create TEMP_DIR after ensure_fstab_tmpfs! so it lives on disk if /var/tmp was unmounted/remounted.
-FileUtils.mkdir_p(TEMP_DIR)
-FileUtils.chmod(0o755, TEMP_DIR)
+ensure_work_dir!
 
 install_allscan_flag = false
 install_dvswitch_flag = false
+install_sm_elite_flag = false
 install_supermon_ng_flag = false
 install_skywarnplus_ng_flag = false
 install_saytime_weather_rb_flag = false
@@ -467,6 +486,7 @@ install_internet_monitor_flag = false
 OptionParser.new do |opts|
   opts.on('-a') { install_allscan_flag = true }
   opts.on('-d') { install_dvswitch_flag = true }
+  opts.on('-e') { install_sm_elite_flag = true }
   opts.on('-s') { install_supermon_ng_flag = true }
   opts.on('-w') { install_skywarnplus_ng_flag = true }
   opts.on('-y') { install_saytime_weather_rb_flag = true }
@@ -475,14 +495,20 @@ OptionParser.new do |opts|
   opts.on('-h') { puts usage; exit 0 }
 end.parse!
 
-if !install_allscan_flag && !install_dvswitch_flag && !install_supermon_ng_flag && !install_skywarnplus_ng_flag && !install_saytime_weather_rb_flag && !install_sayip_node_utils_flag && !install_internet_monitor_flag
+if !install_allscan_flag && !install_dvswitch_flag && !install_sm_elite_flag && !install_supermon_ng_flag && !install_skywarnplus_ng_flag && !install_saytime_weather_rb_flag && !install_sayip_node_utils_flag && !install_internet_monitor_flag
   puts usage
   exit 1
 end
 
+needs_hardenedpenguin_apt = install_sm_elite_flag || install_supermon_ng_flag || install_skywarnplus_ng_flag ||
+                            install_saytime_weather_rb_flag || install_sayip_node_utils_flag || install_internet_monitor_flag
+
 begin
+  ensure_hardenedpenguin_apt! if needs_hardenedpenguin_apt
+
   install_allscan if install_allscan_flag
   install_dvswitch if install_dvswitch_flag
+  install_sm_elite if install_sm_elite_flag
   install_supermon_ng if install_supermon_ng_flag
   install_skywarnplus_ng if install_skywarnplus_ng_flag
   install_saytime_weather_rb if install_saytime_weather_rb_flag

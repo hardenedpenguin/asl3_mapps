@@ -1,6 +1,6 @@
 # M-App Install (Ruby)
 
-Ruby-based multi-app installer for AllStarLink v3. Installs **AllScan**, **DVSwitch Server**, **Supermon-NG**, **SkywarnPlus-NG**, **saytime-weather-rb**, **sayip-node-utils**, and **internet-monitor** (primarily for mobile nodes).
+Ruby-based multi-app installer for AllStarLink v3. Installs **AllScan**, **DVSwitch Server**, **Supermon-NG**, **SM-Elite**, **SkywarnPlus-NG**, **saytime-weather-rb**, **sayip-node-utils**, and **internet-monitor** (primarily for mobile nodes).
 
 ## Requirements
 
@@ -9,13 +9,13 @@ Ruby-based multi-app installer for AllStarLink v3. Installs **AllScan**, **DVSwi
 
 ## hardenedpenguin APT repository
 
-Supermon-NG, SkywarnPlus-NG, saytime-weather-rb, sayip-node-utils, and internet-monitor are installed from the [hardenedpenguin APT repository](https://github.com/hardenedpenguin/hardenedpenguin-apt). The script configures this repo automatically (keyring 1.2+ with bookworm/trixie suite support, then `apt update`) the first time one of those components is installed.
+Supermon-NG, SM-Elite, SkywarnPlus-NG, saytime-weather-rb, sayip-node-utils, and internet-monitor are installed from the [hardenedpenguin APT repository](https://github.com/hardenedpenguin/hardenedpenguin-apt). If you select any of those options, the script configures the repo once up front (keyring 1.2+ with bookworm/trixie suite support, then `apt update`) before running installs.
 
 After installation, update those packages with:
 
 ```bash
 sudo apt update
-sudo apt upgrade supermon-ng skywarnplus-ng saytime-weather-rb sayip-node-utils internet-monitor
+sudo apt upgrade sm-elite supermon-ng skywarnplus-ng saytime-weather-rb sayip-node-utils internet-monitor
 ```
 
 ## Download & permissions
@@ -35,12 +35,13 @@ Run the script **with sudo** from your **user account** (not as root):
 ```bash
 sudo ./asl3_mapp.rb -a          # AllScan only
 sudo ./asl3_mapp.rb -d          # DVSwitch only
+sudo ./asl3_mapp.rb -e          # SM-Elite only
 sudo ./asl3_mapp.rb -s          # Supermon-NG only
 sudo ./asl3_mapp.rb -w          # SkywarnPlus-NG only
 sudo ./asl3_mapp.rb -y          # saytime-weather-rb only
 sudo ./asl3_mapp.rb -i          # sayip-node-utils (prompts for NODE_NUMBER)
 sudo ./asl3_mapp.rb -m          # internet-monitor (mobile nodes; prompts for NODE_NUMBER)
-sudo ./asl3_mapp.rb -a -d -s -w -y -i -m # All seven
+sudo ./asl3_mapp.rb -a -d -e -s -w -y -i -m # All eight
 sudo ./asl3_mapp.rb -h          # Help
 ```
 
@@ -50,6 +51,7 @@ sudo ./asl3_mapp.rb -h          # Help
 |--------|-------------|
 | `-a` | Install AllScan |
 | `-d` | Install DVSwitch Server |
+| `-e` | Install SM-Elite (from hardenedpenguin APT) |
 | `-s` | Install Supermon-NG |
 | `-w` | Install SkywarnPlus-NG (from hardenedpenguin APT) |
 | `-y` | Install saytime-weather-rb (Ruby saytime + weather) |
